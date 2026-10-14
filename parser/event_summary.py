@@ -43,6 +43,8 @@ def main():
     print("\nAPI TRAFFIC SUMMARY")
     print("-------------------")
 
+    print("\nTotal API requests:", len(events))
+
     print("\nHTTP methods:")
     for method, count in methods.items():
         print(method, ":", count)
@@ -72,6 +74,19 @@ def main():
     print("Successful responses (2xx):", success_count)
     print("Client errors (4xx):", client_error_count)
     print("Server errors (5xx):", server_error_count)
+
+    if events:
+        success_percentage = (
+            success_count / len(events)
+        ) * 100
+
+        print(
+            "Successful response rate: {:.2f}%".format(
+                success_percentage
+            )
+        )
+    else:
+        print("Successful response rate: 0.00%")
 
 
 if __name__ == "__main__":
