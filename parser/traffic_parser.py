@@ -91,6 +91,7 @@ def main():
             raise ValueError("Input must contain a JSON list")
 
         parsed_events = []
+        skipped_count = 0
 
         for event in events:
             try:
@@ -99,6 +100,7 @@ def main():
                 print("Parsed:", parsed)
 
             except (ValueError, AttributeError, TypeError) as error:
+                skipped_count += 1
                 print("Skipping invalid event:", error)
 
         # Create logs folder if it does not exist
@@ -107,7 +109,11 @@ def main():
         with open(OUTPUT_FILE, "w") as file:
             json.dump(parsed_events, file, indent=4)
 
-        print("\nTotal parsed events:", len(parsed_events))
+        print("\nPARSER SUMMARY")
+        print("--------------")
+        print("Total input events:", len(events))
+        print("Successfully parsed:", len(parsed_events))
+        print("Skipped invalid events:", skipped_count)
         print("Output saved to:", OUTPUT_FILE)
 
     except (OSError, json.JSONDecodeError, ValueError) as error:
@@ -116,4 +122,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
