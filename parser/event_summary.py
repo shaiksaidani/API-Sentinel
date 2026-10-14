@@ -19,6 +19,11 @@ def main():
     statuses = {}
     endpoints = {}
 
+    success_count = 0
+    client_error_count = 0
+    server_error_count = 0
+    error_count = 0
+
     for event in events:
         method = event["method"]
         status = event["status_code"]
@@ -27,6 +32,13 @@ def main():
         methods[method] = methods.get(method, 0) + 1
         statuses[status] = statuses.get(status, 0) + 1
         endpoints[endpoint] = endpoints.get(endpoint, 0) + 1
+
+        if 200 <= status < 300:
+            success_count += 1
+        elif 400 <= status < 500:
+            client_error_count += 1
+        elif 500 <= status < 600:
+            server_error_count += 1
 
     print("\nAPI TRAFFIC SUMMARY")
     print("-------------------")
@@ -43,9 +55,6 @@ def main():
     for endpoint, count in endpoints.items():
         print(endpoint, ":", count)
 
-    
-    error_count = 0
-
     print("\nEndpoints with HTTP errors:")
 
     for event in events:
@@ -58,6 +67,11 @@ def main():
             )
 
     print("\nTotal HTTP error responses:", error_count)
+
+    print("\nResponse category summary:")
+    print("Successful responses (2xx):", success_count)
+    print("Client errors (4xx):", client_error_count)
+    print("Server errors (5xx):", server_error_count)
 
 
 if __name__ == "__main__":
