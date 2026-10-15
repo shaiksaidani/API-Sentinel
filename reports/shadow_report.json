@@ -1,0 +1,16 @@
+{
+  "generated_at": "2026-10-14T03:33:34.980737+00:00",
+  "documented_endpoints": 7,
+  "observed_endpoints": 3,
+  "shadow_api_candidates": [
+    {
+      "method": "GET",
+      "path": "/api/internal/reports",
+      "request_count": 1,
+      "status_codes": [
+        200
+      ]
+    }
+  ],
+  "unknown_paths": []
+}
