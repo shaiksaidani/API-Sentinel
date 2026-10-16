@@ -1,4 +1,3 @@
-
 import json
 from datetime import datetime, timezone
 from pathlib import Path
@@ -39,17 +38,17 @@ def log_request(response):
     route_template = route.rule if route else None
 
     event = {
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-        "method": request.method,
-        "path": request.path,
-        "route_template": route_template,
-        "status_code": response.status_code,
-        "documented": (
-            (request.method, route_template)
-            in DOCUMENTED_ENDPOINTS
-            if route_template else False
-        )
-    }
+    "timestamp": datetime.now(timezone.utc).isoformat(),
+    "method": request.method,
+    "path": request.path,
+    "source_ip": request.remote_addr,
+    "route_template": route_template,
+    "status_code": response.status_code,
+    "documented": (
+        (request.method, route_template)
+        in DOCUMENTED_ENDPOINTS if route_template else False
+    )
+}
 
     with LOG_FILE.open("a", encoding="utf-8") as file:
         file.write(json.dumps(event) + "\n")
