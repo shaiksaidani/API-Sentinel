@@ -11,7 +11,7 @@ users = [
     {
         "id": 101,
         "name": "Sahith",
-        "email": "sathish@example.com"
+        "email": "sahith@example.com"
     },
     {
         "id": 102,
