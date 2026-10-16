@@ -29,10 +29,12 @@ def main():
         status = event["status_code"]
         endpoint = event["endpoint"]
 
+        # Count methods, statuses, and endpoints
         methods[method] = methods.get(method, 0) + 1
         statuses[status] = statuses.get(status, 0) + 1
         endpoints[endpoint] = endpoints.get(endpoint, 0) + 1
 
+        # Count response categories
         if 200 <= status < 300:
             success_count += 1
         elif 400 <= status < 500:
@@ -42,7 +44,6 @@ def main():
 
     print("\nAPI TRAFFIC SUMMARY")
     print("-------------------")
-
     print("\nTotal API requests:", len(events))
 
     print("\nHTTP methods:")
@@ -75,19 +76,18 @@ def main():
     print("Client errors (4xx):", client_error_count)
     print("Server errors (5xx):", server_error_count)
 
-    if events:
-        success_percentage = (
-            success_count / len(events)
-        ) * 100
-
-        print(
-            "Successful response rate: {:.2f}%".format(
-                success_percentage
-            )
-        )
+    if len(events) > 0:
+        success_percentage = success_count * 100 / len(events)
     else:
-        print("Successful response rate: 0.00%")
+        success_percentage = 0
+
+    print(
+        "Successful response rate: {:.2f}%".format(
+            success_percentage
+        )
+    )
 
 
 if __name__ == "__main__":
     main()
+
