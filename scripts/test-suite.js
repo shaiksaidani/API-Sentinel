@@ -246,6 +246,85 @@ assert('Proposed backend contracts contain all 5 required integration endpoints'
   `${PROPOSED_BACKEND_CONTRACTS.length} proposed contracts documented`
 );
 
+// ----------------------------------------------------
+// TEST GROUP 8: Week 3 Python Parser & Backend Integration
+// ----------------------------------------------------
+console.log('\n--- Test Group 8: Week 3 Python Parser & Backend Integration ---');
+import { triggerParserRun } from '../src/services/api.js';
+
+// 8.1 Real Parser Schema Adapter Mapping
+const sampleRaw1 = {
+  method: "GET",
+  endpoint: "/api/users",
+  source_ip: "127.0.0.1",
+  status_code: 200,
+  timestamp: "2026-10-09T10:00:00",
+  request_body: null,
+  authenticated_user_id: null,
+  object_owner_id: null
+};
+const adapted1 = adaptParserEvent(sampleRaw1);
+assert('Adapter maps parser endpoint correctly', adapted1.success && adapted1.data.endpoint === '/api/users', `Endpoint: ${adapted1.data?.endpoint}`);
+assert('Adapter preserves null request body safely', adapted1.data.requestBody === null, 'requestBody is null as expected');
+
+// 8.2 BOLA Authorization Safety: User/Owner Mismatch is Candidate, NOT Confirmed Vulnerability
+const sampleRawBOLA = {
+  method: "POST",
+  endpoint: "/api/users",
+  source_ip: "127.0.0.1",
+  status_code: 201,
+  timestamp: "2026-10-09T10:00:15",
+  request_body: { username: "test_user" },
+  authenticated_user_id: "user_2",
+  object_owner_id: "user_1"
+};
+const adaptedBOLA = adaptParserEvent(sampleRawBOLA);
+assert('User/Owner mismatch is labeled as candidate review, not confirmed vulnerability', 
+  adaptedBOLA.data.eventType === 'Potential Authorization Review Candidate', 
+  `Event Type: ${adaptedBOLA.data?.eventType}`
+);
+assert('Caller and owner IDs are preserved on adapted object', 
+  adaptedBOLA.data.authenticatedUserId === 'user_2' && adaptedBOLA.data.objectOwnerId === 'user_1',
+  `Auth: ${adaptedBOLA.data?.authenticatedUserId}, Owner: ${adaptedBOLA.data?.objectOwnerId}`
+);
+
+// 8.3 404 / Uncataloged Path Safety
+const sampleRaw404 = {
+  method: "GET",
+  endpoint: "/api/unknown",
+  source_ip: "127.0.0.1",
+  status_code: 404,
+  timestamp: "2026-10-09T10:00:10",
+  request_body: null
+};
+const adapted404 = adaptParserEvent(sampleRaw404);
+assert('404 route is marked as candidate observation rather than confirmed vulnerability',
+  adapted404.data.eventType === 'Uncataloged Route Observation' && adapted404.data.severity === 'LOW',
+  `Event Type: ${adapted404.data?.eventType}, Severity: ${adapted404.data?.severity}`
+);
+
+// 8.4 Empty & Malformed Event Batches
+const emptyBatch = adaptParserEvents([]);
+assert('Empty events batch returns cleanly without crashing', emptyBatch.adapted.length === 0 && emptyBatch.totalParsed === 0, 'Handled empty array');
+
+const malformedBatch = adaptParserEvents([null, undefined, { method: "GET" }]);
+assert('Malformed events are skipped without throwing exceptions', malformedBatch.rejectedCount === 3 && malformedBatch.adapted.length === 0, `Rejected: ${malformedBatch.rejectedCount}`);
+
+// 8.5 Parser Execution Trigger Contract in API Service
+assert('apiService exports triggerParserRun function', typeof triggerParserRun === 'function', 'triggerParserRun exported');
+assert('POST /api/v1/parser/run is registered in backend contracts', 
+  PROPOSED_BACKEND_CONTRACTS.some(c => c.endpoint === 'POST /api/v1/parser/run'),
+  'POST /api/v1/parser/run documented'
+);
+
+// 8.6 Deduplication & Refresh Integrity
+const sampleBatch = [sampleRaw1, sampleRawBOLA];
+const run1 = adaptParserEvents(sampleBatch).adapted;
+const run2 = adaptParserEvents(sampleBatch).adapted;
+assert('Consecutive parser adaptations produce consistent non-duplicated counts', 
+  run1.length === 2 && run2.length === 2, 
+  `Batch 1: ${run1.length}, Batch 2: ${run2.length}`
+);
 
 // Summary of results
 const totalPass = results.filter(r => r.status === 'PASS').length;
