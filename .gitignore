@@ -6,3 +6,4 @@ dist-ssr
 .DS_Store
 
 __pycache__/
+logs/traffic.jsonl
