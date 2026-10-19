@@ -27,6 +27,18 @@ DOCUMENTED_ENDPOINTS = {
     ("GET", "/api/users/<int:user_id>"),
     ("POST", "/api/users")
 }
+def get_test_user():
+    """Resolve a local test identity against the server-side user list."""
+    test_user_id = request.headers.get("X-Test-User-ID")
+
+    if not test_user_id:
+        return None
+
+    for user in users:
+        if str(user["id"]) == test_user_id:
+            return user
+
+    return None
 
 
 # Record every API request in JSON Lines format
