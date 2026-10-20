@@ -1,3 +1,4 @@
+
 import json
 from datetime import datetime, timezone
 from pathlib import Path
@@ -27,6 +28,8 @@ DOCUMENTED_ENDPOINTS = {
     ("GET", "/api/users/<int:user_id>"),
     ("POST", "/api/users")
 }
+
+
 def get_test_user():
     """Resolve a local test identity against the server-side user list."""
     test_user_id = request.headers.get("X-Test-User-ID")
@@ -44,23 +47,37 @@ def get_test_user():
 # Record every API request in JSON Lines format
 @app.after_request
 def log_request(response):
-
     route = request.url_rule
-
     route_template = route.rule if route else None
 
+    current_user = get_test_user()
+    object_owner_id = None
+
+    # Resolve the owner from the server-side user list
+    if request.endpoint == "get_user" and request.view_args:
+        requested_user_id = request.view_args.get("user_id")
+
+        for user in users:
+            if user["id"] == requested_user_id:
+                object_owner_id = user["id"]
+                break
+
     event = {
-    "timestamp": datetime.now(timezone.utc).isoformat(),
-    "method": request.method,
-    "path": request.path,
-    "source_ip": request.remote_addr,
-    "route_template": route_template,
-    "status_code": response.status_code,
-    "documented": (
-        (request.method, route_template)
-        in DOCUMENTED_ENDPOINTS if route_template else False
-    )
-}
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "method": request.method,
+        "path": request.path,
+        "source_ip": request.remote_addr,
+        "route_template": route_template,
+        "status_code": response.status_code,
+        "documented": (
+            (request.method, route_template)
+            in DOCUMENTED_ENDPOINTS if route_template else False
+        ),
+        "authenticated_user_id": (
+            current_user["id"] if current_user else None
+        ),
+        "object_owner_id": object_owner_id
+    }
 
     with LOG_FILE.open("a", encoding="utf-8") as file:
         file.write(json.dumps(event) + "\n")
@@ -71,7 +88,6 @@ def log_request(response):
 # Health-check endpoint
 @app.route("/api/health", methods=["GET"])
 def health():
-
     return jsonify({
         "status": "success",
         "message": "API Sentinel Mock API is running"
@@ -81,7 +97,6 @@ def health():
 # Get all users
 @app.route("/api/users", methods=["GET"])
 def get_users():
-
     return jsonify({
         "status": "success",
         "count": len(users),
@@ -92,7 +107,6 @@ def get_users():
 # Get a specific user
 @app.route("/api/users/<int:user_id>", methods=["GET"])
 def get_user(user_id):
-
     for user in users:
         if user["id"] == user_id:
             return jsonify({
@@ -109,7 +123,6 @@ def get_user(user_id):
 # Create a new user
 @app.route("/api/users", methods=["POST"])
 def create_user():
-
     data = request.get_json(silent=True)
 
     if not isinstance(data, dict):
@@ -148,7 +161,6 @@ def create_user():
 # Used to demonstrate shadow API discovery
 @app.route("/api/internal/reports", methods=["GET"])
 def internal_reports():
-
     return jsonify({
         "status": "success",
         "message": "Internal reports endpoint",
@@ -161,7 +173,6 @@ def internal_reports():
 
 # Run the mock API server
 if __name__ == "__main__":
-
     print("Starting API Sentinel Mock API...")
     print("Server: http://127.0.0.1:5001")
 
