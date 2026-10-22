@@ -1,6 +1,7 @@
 
 import json
 import os
+import sys
 import ipaddress
 from datetime import datetime
 
@@ -121,9 +122,84 @@ def load_events(file_path):
     return data
 
 
-def main():
+def validate_event(event):
+    """Validate and normalize one event."""
+    if not isinstance(event, dict):
+        return False, "Event must be a JSON object", None
+
+    for field in ["method", "source_ip", "status_code", "timestamp"]:
+        if field not in event:
+            return False, "Missing field: " + field, None
+
+    method = event.get("method")
+    if not isinstance(method, str):
+        return False, "Unsupported HTTP method", None
+    method = method.upper()
+    if method not in ["GET", "POST", "PUT", "DELETE", "PATCH"]:
+        return False, "Unsupported HTTP method", None
+
+    path = event.get("path", event.get("endpoint"))
+    if not isinstance(path, str) or not path.startswith("/"):
+        return False, "Missing or invalid 'path'", None
+
     try:
-        events = load_events(INPUT_FILE)
+        status = int(event.get("status_code"))
+    except (ValueError, TypeError):
+        return False, "Invalid status code range", None
+    if isinstance(event.get("status_code"), bool) or not 100 <= status <= 599:
+        return False, "Status code out of range", None
+
+    normalized = dict(event)
+    normalized["method"] = method
+    normalized["status_code"] = status
+    normalized["path"] = path
+    normalized["endpoint"] = path
+    normalized.setdefault("request_body", None)
+
+    try:
+        ipaddress.ip_address(normalized["source_ip"])
+        datetime.fromisoformat(normalized["timestamp"])
+    except (ValueError, TypeError):
+        return False, "Invalid source IP or timestamp", None
+
+    return True, None, normalized
+def parse_traffic_file(input_path, output_path):
+    """Parse a JSON array, write normalized events, and return counts."""
+    try:
+        with open(input_path, "r", encoding="utf-8") as file:
+            events = json.load(file)
+    except (OSError, json.JSONDecodeError) as error:
+        raise ValueError("Unable to read valid JSON input") from error
+
+    if not isinstance(events, list):
+        raise ValueError("Input must contain a JSON list")
+
+    accepted = []
+    skipped = 0
+
+    for event in events:
+        valid, error, normalized = validate_event(event)
+        if valid:
+            accepted.append(normalized)
+        else:
+            skipped += 1
+
+    with open(output_path, "w", encoding="utf-8") as file:
+        json.dump(accepted, file, indent=4)
+
+    return {
+        "total_input": len(events),
+        "accepted_count": len(accepted),
+        "skipped_count": skipped,
+    }
+
+
+def main():
+    input_file = sys.argv[1] if len(sys.argv) > 1 else INPUT_FILE
+    output_file = sys.argv[2] if len(sys.argv) > 2 else OUTPUT_FILE
+
+    try:
+        events = load_events(input_file)
 
         parsed_events = []
         skipped = 0
@@ -139,11 +215,11 @@ def main():
                 print("Skipping invalid event:", error)
 
         os.makedirs(
-            os.path.dirname(OUTPUT_FILE),
+            os.path.dirname(output_file),
             exist_ok=True
         )
 
-        with open(OUTPUT_FILE, "w", encoding="utf-8") as file:
+        with open(output_file, "w", encoding="utf-8") as file:
             json.dump(parsed_events, file, indent=4)
 
         print("\nPARSER SUMMARY")
@@ -151,7 +227,7 @@ def main():
         print("Total input events:", len(events))
         print("Successfully parsed:", len(parsed_events))
         print("Skipped invalid events:", skipped)
-        print("Output saved to:", OUTPUT_FILE)
+        print("Output saved to:", output_file)
 
     except (OSError, json.JSONDecodeError, ValueError) as error:
         print("Parser error:", error)

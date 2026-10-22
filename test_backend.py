@@ -13,13 +13,13 @@ import tempfile
 import asyncio
 
 # Ensure project root is in python path
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
 from parser.traffic_parser import validate_event, parse_traffic_file
 from parser.event_summary import compute_summary_metrics
-from backend.main import app, load_parsed_events_safely
+from main import app, load_parsed_events_safely
 from starlette.testclient import TestClient
 
 
