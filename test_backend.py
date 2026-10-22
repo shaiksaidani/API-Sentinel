@@ -13,13 +13,13 @@ import tempfile
 import asyncio
 
 # Ensure project root is in python path
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
 from parser.traffic_parser import validate_event, parse_traffic_file
 from parser.event_summary import compute_summary_metrics
-from backend.main import app, load_parsed_events_safely
+from main import app, load_parsed_events_safely, PARSED_LOG, SAMPLE_INPUT
 from starlette.testclient import TestClient
 
 
@@ -147,7 +147,29 @@ class TestFastApiBackend(unittest.TestCase):
     """Tests for FastAPI endpoints via TestClient"""
 
     def setUp(self):
+        # Keep tests independent of whatever data is in the tracked log.
+        self._parsed_log_existed = os.path.exists(PARSED_LOG)
+        self._original_parsed_log = None
+
+        if self._parsed_log_existed:
+            with open(PARSED_LOG, "rb") as f:
+                self._original_parsed_log = f.read()
+
+        parse_result = parse_traffic_file(SAMPLE_INPUT, PARSED_LOG)
+        if parse_result.get("accepted_count") != 4:
+            raise AssertionError(
+                f"Expected 4 sample events, got {parse_result.get('accepted_count')}"
+            )
+
         self.client = TestClient(app)
+
+    def tearDown(self):
+        # Restore the tracked log so tests don't leave generated data behind.
+        if self._parsed_log_existed:
+            with open(PARSED_LOG, "wb") as f:
+                f.write(self._original_parsed_log)
+        elif os.path.exists(PARSED_LOG):
+            os.remove(PARSED_LOG)
 
     def test_health_endpoint(self):
         response = self.client.get("/api/v1/health")

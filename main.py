@@ -17,7 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 # Project directory paths
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 PARSER_SCRIPT = os.path.join(BASE_DIR, "parser", "traffic_parser.py")
 SAMPLE_INPUT = os.path.join(BASE_DIR, "parser", "sample_events.json")
 PARSED_LOG = os.path.join(BASE_DIR, "logs", "parsed_events.json")
@@ -264,7 +264,7 @@ async def get_shadow_api_candidates():
     """
     events = load_parsed_events_safely()
     shadow_events = [
-        ev for ev in events 
+        ev for ev in events
         if "unknown" in ev.get("endpoint", "").lower() or ev.get("status_code") == 404
     ]
     return {
