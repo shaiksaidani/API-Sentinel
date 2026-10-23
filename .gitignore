@@ -1,18 +1,9 @@
-# Python virtual environment
-.venv/
-venv/
-
-# Python cache files
+node_modules
+dist
+dist-ssr
+*.local
+.vscode
+.DS_Store
 __pycache__/
 *.py[cod]
-
-# Environment variables and secrets
-.env
-
-# Local traffic logs
-logs/
-
-# IDE and operating system files
-.vscode/
-.DS_Store
-Thumbs.db
+*$py.class
