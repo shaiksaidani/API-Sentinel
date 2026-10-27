@@ -1,17 +1,20 @@
 import React from 'react';
 import { Search, Calendar, AlertTriangle, Play, RefreshCw, CheckCircle2, WifiOff } from 'lucide-react';
 
-export default function Header({ 
-  searchQuery, 
-  onSearchChange, 
-  title = "Security Overview", 
+export default function Header({
+  searchQuery,
+  onSearchChange,
+  title = "Security Overview",
   subtitle = "Runtime API Security Monitoring",
   searchPlaceholder = "Search endpoints or alerts...",
   dataSourceMode = "DEMO",
   onToggleDataSourceMode,
   backendStatus = null,
   onRunParser = null,
-  isParserRunning = false
+  isParserRunning = false,
+  onRefreshBackend = null,
+  isRefreshing = false,
+  lastRefreshedAt = null
 }) {
   // Format current date cleanly (e.g., Oct 18, 2026)
   const today = new Intl.DateTimeFormat('en-US', {
@@ -50,8 +53,8 @@ export default function Header({
         {/* Backend Actions & Live Badge (only visible in Backend mode) */}
         {dataSourceMode === 'BACKEND' && backendStatus?.state === 'connected' && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span 
-              className="status-pill status-documented" 
+            <span
+              className="status-pill status-documented"
               style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: '0.75rem' }}
               title="FastAPI gateway connected and healthy"
             >
@@ -59,10 +62,23 @@ export default function Header({
               <span>FastAPI Online</span>
             </span>
 
+            {onRefreshBackend && (
+              <button
+                className="btn-inspect"
+                onClick={onRefreshBackend}
+                disabled={isRefreshing}
+                title={lastRefreshedAt ? `Last refreshed: ${lastRefreshedAt}. Click to reload live data.` : "Refresh live backend data"}
+                style={{ padding: '6px 10px', fontSize: '0.78rem' }}
+              >
+                <RefreshCw size={12} className={isRefreshing ? "spin-icon" : ""} />
+                <span>{isRefreshing ? 'Refreshing...' : 'Refresh'}</span>
+              </button>
+            )}
+
             {onRunParser && (
-              <button 
-                className="btn-inspect" 
-                onClick={onRunParser} 
+              <button
+                className="btn-inspect"
+                onClick={onRunParser}
                 disabled={isParserRunning}
                 title="Execute Python traffic parser against sample_events.json"
                 style={{ padding: '6px 10px', fontSize: '0.78rem' }}

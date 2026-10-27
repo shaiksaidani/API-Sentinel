@@ -209,6 +209,70 @@ class TestFastApiBackend(unittest.TestCase):
         self.assertTrue(data["success"])
         self.assertEqual(data["total_events_loaded"], 4)
 
+    def test_telemetry_series_endpoint(self):
+        """Week 4: Validates GET /api/v1/telemetry returns bucketed time series."""
+        response = self.client.get("/api/v1/telemetry")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data["success"])
+        self.assertIn("series", data)
+        self.assertGreater(data["count"], 0)
+        first_bucket = data["series"][0]
+        self.assertIn("time", first_bucket)
+        self.assertIn("total", first_bucket)
+        self.assertIn("documented", first_bucket)
+        self.assertIn("shadow", first_bucket)
+        self.assertIn("flagged", first_bucket)
+        self.assertIn("get", first_bucket)
+        self.assertIn("post", first_bucket)
+
+    def test_events_pagination(self):
+        """Week 4: Validates limit and offset query parameters on /api/v1/events."""
+        response = self.client.get("/api/v1/events?limit=2&offset=1")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data["success"])
+        self.assertEqual(data["total"], 4)
+        self.assertEqual(data["count"], 2)
+        self.assertEqual(data["offset"], 1)
+        self.assertEqual(data["limit"], 2)
+        self.assertEqual(len(data["events"]), 2)
+
+    def test_bola_enhanced_finding_metadata(self):
+        """Week 4: Validates structured finding IDs and remediation on BOLA candidates."""
+        response = self.client.get("/api/v1/detections/bola")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        candidate = data["candidates"][0]
+        self.assertTrue(candidate["id"].startswith("BOLA-CANDIDATE-"))
+        self.assertEqual(candidate["severity"], "HIGH")
+        self.assertEqual(candidate["status"], "Under Review")
+        self.assertIn("remediation", candidate)
+        self.assertIn("authorization-policy verification", candidate["note"])
+
+    def test_shadow_enhanced_candidate_metadata(self):
+        """Week 4: Validates structured candidate metadata on shadow API detections."""
+        response = self.client.get("/api/v1/detections/shadow-apis")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        candidate = data["candidates"][0]
+        self.assertTrue(candidate["id"].startswith("SHADOW-CANDIDATE-"))
+        self.assertEqual(candidate["catalog_status"], "Undocumented Candidate")
+        self.assertIn("remediation", candidate)
+        self.assertEqual(candidate["detection_type"], "Uncataloged Route Observation")
+
+    def test_cors_headers_allowed_origin(self):
+        """Week 4: Validates CORS headers for local Vite origin."""
+        response = self.client.options(
+            "/api/v1/health",
+            headers={
+                "Origin": "http://localhost:3000",
+                "Access-Control-Request-Method": "GET"
+            }
+        )
+        self.assertIn(response.status_code, [200, 204])
+        self.assertEqual(response.headers.get("access-control-allow-origin"), "http://localhost:3000")
+
 
 if __name__ == "__main__":
     unittest.main()

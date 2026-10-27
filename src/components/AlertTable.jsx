@@ -1,9 +1,9 @@
 import React, { useState, useMemo } from 'react';
-import { 
-  ShieldAlert, 
-  AlertTriangle, 
-  RotateCcw, 
-  Clock, 
+import {
+  ShieldAlert,
+  AlertTriangle,
+  RotateCcw,
+  Clock,
   Info,
   Eye,
   Globe
@@ -53,9 +53,9 @@ export default function AlertTable({ alerts = [], globalSearch = '', onClearGlob
   };
 
   const isFiltered = Boolean(
-    searchTerm || 
-    (globalSearch && globalSearch.trim()) || 
-    severityFilter !== 'ALL' || 
+    searchTerm ||
+    (globalSearch && globalSearch.trim()) ||
+    severityFilter !== 'ALL' ||
     typeFilter !== 'ALL'
   );
 
@@ -138,7 +138,9 @@ export default function AlertTable({ alerts = [], globalSearch = '', onClearGlob
             >
               <option value="ALL">All Event Types</option>
               <option value="BOLA Suspicion">BOLA Suspicion</option>
+              <option value="Potential Authorization Review Candidate">BOLA Review Candidate</option>
               <option value="Shadow API Candidate">Shadow API Candidate</option>
+              <option value="Uncataloged Route Observation">Uncataloged Route Observation</option>
               <option value="Unusual Access Pattern">Unusual Access Pattern</option>
             </select>
 
@@ -198,10 +200,10 @@ export default function AlertTable({ alerts = [], globalSearch = '', onClearGlob
                     </td>
                     <td>
                       <span className="event-type-pill">
-                        {alert.eventType === 'BOLA Suspicion' && (
+                        {(alert.eventType === 'BOLA Suspicion' || alert.eventType === 'Potential Authorization Review Candidate') && (
                           <ShieldAlert size={14} color="var(--color-critical)" />
                         )}
-                        {alert.eventType === 'Shadow API Candidate' && (
+                        {(alert.eventType === 'Shadow API Candidate' || alert.eventType === 'Uncataloged Route Observation') && (
                           <AlertTriangle size={14} color="var(--color-warning)" />
                         )}
                         {alert.eventType === 'Unusual Access Pattern' && (
@@ -214,8 +216,8 @@ export default function AlertTable({ alerts = [], globalSearch = '', onClearGlob
                       {getSeverityBadge(alert.severity)}
                     </td>
                     <td>
-                      <span style={{ 
-                        fontSize: '0.75rem', 
+                      <span style={{
+                        fontSize: '0.75rem',
                         fontWeight: 600,
                         color: alert.status === 'Resolved' ? 'var(--color-success)' : 'var(--text-secondary)'
                       }}>

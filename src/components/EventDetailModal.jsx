@@ -1,13 +1,13 @@
 import React, { useEffect } from 'react';
-import { 
-  X, 
-  ShieldAlert, 
-  AlertTriangle, 
-  Clock, 
-  Server, 
-  Globe, 
-  Code, 
-  CheckCircle2, 
+import {
+  X,
+  ShieldAlert,
+  AlertTriangle,
+  Clock,
+  Server,
+  Globe,
+  Code,
+  CheckCircle2,
   ShieldCheck,
   Lock
 } from 'lucide-react';
@@ -59,8 +59,8 @@ export default function EventDetailModal({ event, onClose }) {
         <div className="modal-header">
           <div className="modal-header-left">
             <div className="modal-icon-badge">
-              {event.eventType === 'BOLA Suspicion' && <ShieldAlert size={20} color="var(--color-critical)" />}
-              {event.eventType === 'Shadow API Candidate' && <AlertTriangle size={20} color="var(--color-warning)" />}
+              {(event.eventType === 'BOLA Suspicion' || event.eventType === 'Potential Authorization Review Candidate') && <ShieldAlert size={20} color="var(--color-critical)" />}
+              {(event.eventType === 'Shadow API Candidate' || event.eventType === 'Uncataloged Route Observation') && <AlertTriangle size={20} color="var(--color-warning)" />}
               {event.eventType === 'Unusual Access Pattern' && <Clock size={20} color="var(--primary-blue)" />}
             </div>
             <div>
@@ -188,7 +188,7 @@ export default function EventDetailModal({ event, onClose }) {
             </h4>
             <div className="code-block-wrapper">
               <pre className="doc-code-block" style={{ margin: 0 }}>
-                {event.requestHeaders 
+                {event.requestHeaders
                   ? JSON.stringify(event.requestHeaders, null, 2)
                   : "{\n  \"User-Agent\": \"HTTP-Client/1.0\",\n  \"Accept\": \"*/*\"\n}"
                 }
@@ -208,7 +208,7 @@ export default function EventDetailModal({ event, onClose }) {
                 Masked by Default
               </span>
             </div>
-            
+
             <div className="code-block-wrapper">
               {event.requestBody ? (
                 <pre className="doc-code-block" style={{ margin: 0 }}>

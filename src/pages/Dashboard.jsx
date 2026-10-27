@@ -5,22 +5,25 @@ import EndpointTable from '../components/EndpointTable';
 import AlertTable from '../components/AlertTable';
 import TrafficChart from '../components/TrafficChart';
 import DocumentationView from '../components/DocumentationView';
-import { 
-  summaryStats, 
-  endpointsData, 
-  securityAlertsData, 
-  trafficHistory, 
+import {
+  summaryStats,
+  endpointsData,
+  securityAlertsData,
+  trafficHistory,
   methodDistribution,
   alertDistribution
 } from '../data/mockData';
 import { Info, ShieldAlert, WifiOff, RefreshCw, Server, AlertCircle } from 'lucide-react';
-import { 
-  checkBackendHealth, 
-  fetchSummaryMetrics, 
-  fetchSecurityEvents, 
-  fetchEndpoints, 
-  triggerParserRun, 
-  API_BASE_URL 
+import {
+  checkBackendHealth,
+  fetchSummaryMetrics,
+  fetchSecurityEvents,
+  fetchEndpoints,
+  fetchShadowDetections,
+  fetchBolaDetections,
+  fetchTelemetryHistory,
+  triggerParserRun,
+  API_BASE_URL
 } from '../services/api';
 import { adaptParserEvents } from '../services/eventAdapter';
 
@@ -28,18 +31,32 @@ export default function Dashboard({ activeSection, onSelectSection }) {
   const [globalSearch, setGlobalSearch] = useState('');
   const [dataSourceMode, setDataSourceMode] = useState('DEMO');
   const [backendStatus, setBackendStatus] = useState({ state: 'idle', error: null, attemptedAt: null });
-  const [backendData, setBackendData] = useState({ summary: null, events: [], endpoints: [] });
+  const [backendData, setBackendData] = useState({
+    summary: null,
+    events: [],
+    endpoints: [],
+    shadowDetections: [],
+    bolaDetections: [],
+    telemetry: []
+  });
   const [isParserRunning, setIsParserRunning] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastRefreshedAt, setLastRefreshedAt] = useState(null);
+  const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
   const [parserFeedback, setParserFeedback] = useState(null);
 
   // Load backend data from FastAPI endpoints
   const loadBackendData = async () => {
+    setIsRefreshing(true);
     try {
-      const [healthRes, summaryRes, eventsRes, endpointsRes] = await Promise.all([
+      const [healthRes, summaryRes, eventsRes, endpointsRes, shadowRes, bolaRes, telemetryRes] = await Promise.all([
         checkBackendHealth(),
         fetchSummaryMetrics(),
         fetchSecurityEvents(),
-        fetchEndpoints()
+        fetchEndpoints(),
+        fetchShadowDetections(),
+        fetchBolaDetections(),
+        fetchTelemetryHistory()
       ]);
 
       if (!healthRes.success) {
@@ -48,6 +65,7 @@ export default function Dashboard({ activeSection, onSelectSection }) {
           error: healthRes.error || `Failed to connect to ${API_BASE_URL}`,
           attemptedAt: new Date().toLocaleTimeString()
         });
+        setIsRefreshing(false);
         return;
       }
 
@@ -57,20 +75,40 @@ export default function Dashboard({ activeSection, onSelectSection }) {
       const adaptedResult = adaptParserEvents(rawEvents);
       const rawEndpoints = (endpointsRes.data && endpointsRes.data.endpoints) || endpointsRes.data || [];
       const summary = summaryRes.data || null;
+      const shadowDetections = (shadowRes.data && shadowRes.data.candidates) || [];
+      const bolaDetections = (bolaRes.data && bolaRes.data.candidates) || [];
+      const telemetrySeries = (telemetryRes.data && (telemetryRes.data.series || telemetryRes.data.telemetry)) || [];
 
       setBackendData({
         summary,
         events: adaptedResult.adapted,
-        endpoints: rawEndpoints
+        endpoints: rawEndpoints,
+        shadowDetections,
+        bolaDetections,
+        telemetry: telemetrySeries
       });
+      setLastRefreshedAt(new Date().toLocaleTimeString());
     } catch (err) {
       setBackendStatus({
         state: 'error',
         error: String(err),
         attemptedAt: new Date().toLocaleTimeString()
       });
+    } finally {
+      setIsRefreshing(false);
     }
   };
+
+  // Auto-refresh polling every 15 seconds when in live backend mode
+  React.useEffect(() => {
+    if (dataSourceMode !== 'BACKEND' || !autoRefreshEnabled || backendStatus.state !== 'connected') {
+      return;
+    }
+    const timer = setInterval(() => {
+      loadBackendData();
+    }, 15000);
+    return () => clearInterval(timer);
+  }, [dataSourceMode, autoRefreshEnabled, backendStatus.state]);
 
   // Handle data source mode toggle
   const handleToggleDataSourceMode = async (mode) => {
@@ -175,8 +213,8 @@ export default function Dashboard({ activeSection, onSelectSection }) {
     {
       id: 'shadow-api-candidates',
       title: 'Shadow API Candidates',
-      value: String(backendData.summary.uncataloged_endpoint_count || (backendData.endpoints || []).filter(e => e.docStatus === 'Undocumented Candidate').length || 0),
-      numericValue: backendData.summary.uncataloged_endpoint_count || 0,
+      value: String(backendData.shadowDetections?.length ?? backendData.summary.uncataloged_endpoint_count ?? (backendData.endpoints || []).filter(e => e.docStatus === 'Undocumented Candidate').length),
+      numericValue: backendData.shadowDetections?.length ?? backendData.summary.uncataloged_endpoint_count ?? 0,
       change: 'Audit needed',
       changeType: 'neutral',
       subtext: 'Uncataloged paths observed in traffic',
@@ -186,8 +224,8 @@ export default function Dashboard({ activeSection, onSelectSection }) {
     {
       id: 'bola-alert-candidates',
       title: 'BOLA Review Candidates',
-      value: String(backendData.summary.potential_auth_review_count || 0),
-      numericValue: backendData.summary.potential_auth_review_count || 0,
+      value: String(backendData.bolaDetections?.length ?? backendData.summary.potential_auth_review_count ?? 0),
+      numericValue: backendData.bolaDetections?.length ?? backendData.summary.potential_auth_review_count ?? 0,
       change: 'Triage',
       changeType: 'warning',
       subtext: 'Caller/Owner ID discrepancies observed',
@@ -204,22 +242,27 @@ export default function Dashboard({ activeSection, onSelectSection }) {
     { method: 'OTHER', count: backendData.summary.methods?.OTHER || 0, percentage: '0%', color: '#8B5CF6' }
   ] : methodDistribution;
 
-  const effectiveEndpoints = (isBackendLive && backendData.endpoints?.length > 0)
+  const effectiveEndpoints = isBackendLive
     ? backendData.endpoints
     : endpointsData;
 
-  const effectiveAlerts = (isBackendLive && backendData.events?.length > 0)
+  const effectiveAlerts = isBackendLive
     ? backendData.events
     : securityAlertsData;
 
-  const effectiveTraffic = (isBackendLive && backendData.events?.length > 0)
-    ? backendData.events.map((ev, i) => ({
-        time: ev.timestamp ? ev.timestamp.substring(11, 16) : `10:0${i * 5}`,
-        total: 1,
-        get: ev.method === 'GET' ? 1 : 0,
-        post: ev.method === 'POST' ? 1 : 0,
-        anomalies: ev.statusCode >= 400 ? 1 : 0
-      }))
+  const effectiveTraffic = isBackendLive
+    ? (backendData.telemetry?.length > 0
+        ? backendData.telemetry
+        : backendData.events.map((ev, i) => ({
+            time: ev.timestamp ? ev.timestamp.substring(11, 19) : `10:00:0${i * 5}`,
+            total: 1,
+            documented: ev.eventType === 'Observed API Event' ? 1 : 0,
+            shadow: ev.eventType === 'Uncataloged Route Observation' ? 1 : 0,
+            flagged: (ev.eventType === 'Potential Authorization Review Candidate' || ev.statusCode >= 400) ? 1 : 0,
+            get: ev.method === 'GET' ? 1 : 0,
+            post: ev.method === 'POST' ? 1 : 0
+          }))
+      )
     : trafficHistory;
 
   return (
@@ -236,6 +279,9 @@ export default function Dashboard({ activeSection, onSelectSection }) {
         backendStatus={backendStatus}
         onRunParser={handleRunParser}
         isParserRunning={isParserRunning}
+        onRefreshBackend={loadBackendData}
+        isRefreshing={isRefreshing}
+        lastRefreshedAt={lastRefreshedAt}
       />
 
       <div className="page-wrapper">
@@ -271,9 +317,9 @@ export default function Dashboard({ activeSection, onSelectSection }) {
               </p>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-              <button 
-                className="btn-inspect" 
-                onClick={handleRunParser} 
+              <button
+                className="btn-inspect"
+                onClick={handleRunParser}
                 disabled={isParserRunning}
                 title="Execute parser/traffic_parser.py against sample_events.json"
               >
