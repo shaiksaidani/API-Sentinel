@@ -1,0 +1,11 @@
+tracepoint:sock:inet_sock_set_state
+/args.family == 2/
+{
+    printf("{\"event_type\":\"tcp_state_change\",\"protocol\":\"TCP\",\"source_ip\":\"%s\",\"source_port\":%d,\"destination_ip\":\"%s\",\"destination_port\":%d,\"old_state\":%d,\"new_state\":%d}\n",
+        ntop(2, args.saddr),
+        args.sport,
+        ntop(2, args.daddr),
+        args.dport,
+        args.oldstate,
+        args.newstate);
+}
