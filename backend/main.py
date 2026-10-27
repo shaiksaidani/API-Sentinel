@@ -9,6 +9,7 @@ and aggregates runtime telemetry from logs/parsed_events.json.
 import os
 import sys
 import json
+import re
 import asyncio
 import subprocess
 from typing import Dict, List, Any, Optional
@@ -21,6 +22,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PARSER_SCRIPT = os.path.join(BASE_DIR, "parser", "traffic_parser.py")
 SAMPLE_INPUT = os.path.join(BASE_DIR, "parser", "sample_events.json")
 PARSED_LOG = os.path.join(BASE_DIR, "logs", "parsed_events.json")
+DOCUMENTED_FILE = os.path.join(BASE_DIR, "Documented_endpoints.json")
 
 # Ensure parser import for direct summary generation
 if BASE_DIR not in sys.path:
@@ -83,6 +85,38 @@ def load_parsed_events_safely() -> List[Dict[str, Any]]:
         return []
 
 
+def load_documented_endpoints() -> List[Dict[str, str]]:
+    """
+    Loads officially cataloged API endpoints from Documented_endpoints.json.
+    """
+    if not os.path.exists(DOCUMENTED_FILE):
+        return []
+    try:
+        with open(DOCUMENTED_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            return data.get("endpoints", [])
+    except (json.JSONDecodeError, OSError):
+        return []
+
+
+def is_route_documented(method: str, path: str, documented: List[Dict[str, str]]) -> bool:
+    """
+    Checks if an observed (method, path) matches the documented catalog,
+    supporting path parameter placeholders such as <int:id> or {id}.
+    """
+    norm_m = (method or "GET").strip().upper()
+    for doc in documented:
+        if doc.get("method", "").strip().upper() != norm_m:
+            continue
+        doc_path = doc.get("path", "")
+        pattern = re.sub(r"<[^>]+>", r"[^/]+", doc_path)
+        pattern = re.sub(r"\{[^}]+\}", r"[^/]+", pattern)
+        pattern = f"^{pattern}$"
+        if re.match(pattern, path):
+            return True
+    return False
+
+
 @app.get("/api/v1/health")
 async def health_check():
     """
@@ -104,15 +138,25 @@ async def health_check():
 
 
 @app.get("/api/v1/events")
-async def get_events():
+async def get_events(limit: Optional[int] = None, offset: int = 0):
     """
-    Returns array of validated parsed security telemetry events.
+    Returns array of validated parsed security telemetry events,
+    with optional pagination support.
     """
     events = load_parsed_events_safely()
+    total = len(events)
+    paged = events
+    if offset > 0:
+        paged = paged[offset:]
+    if limit is not None and limit >= 0:
+        paged = paged[:limit]
     return {
         "success": True,
-        "count": len(events),
-        "events": events
+        "total": total,
+        "count": len(paged),
+        "offset": offset,
+        "limit": limit,
+        "events": paged
     }
 
 
@@ -228,27 +272,35 @@ async def run_parser_task():
 async def get_endpoints_inventory():
     """
     Returns inventory of endpoints derived from parsed traffic.
+    Cross-checks against documented OpenAPI endpoints when catalog is available.
     """
     events = load_parsed_events_safely()
+    documented = load_documented_endpoints()
     endpoints_map: Dict[str, Dict[str, Any]] = {}
 
     for ev in events:
         key = f"{ev.get('method', 'GET')} {ev.get('endpoint', '/')}"
+        ep = ev.get("endpoint", "/")
+        m = ev.get("method", "GET").upper()
+        sc = ev.get("status_code", 200)
+
+        is_doc = is_route_documented(m, ep, documented) if documented else ("unknown" not in ep.lower())
+        is_undoc = not is_doc
+
         if key not in endpoints_map:
-            ep = ev.get("endpoint", "/")
-            is_undoc = "unknown" in ep.lower()
             endpoints_map[key] = {
                 "id": f"EP-DERIVED-{len(endpoints_map) + 1:03d}",
-                "method": ev.get("method", "GET"),
+                "method": m,
                 "endpoint": ep,
                 "requestCount": 1,
-                "lastStatusCode": ev.get("status_code", 200),
+                "lastStatusCode": sc,
                 "docStatus": "Undocumented Candidate" if is_undoc else "Documented",
-                "riskStatus": "Review Required" if (is_undoc or ev.get("status_code", 200) >= 400) else "Normal",
+                "riskStatus": "Review Required" if (is_undoc or sc >= 400) else "Normal",
                 "description": f"Derived from parsed runtime traffic ({ev.get('source_ip', '127.0.0.1')})"
             }
         else:
             endpoints_map[key]["requestCount"] += 1
+            endpoints_map[key]["lastStatusCode"] = sc
 
     return {
         "success": True,
@@ -261,16 +313,38 @@ async def get_endpoints_inventory():
 async def get_shadow_api_candidates():
     """
     Returns uncataloged route candidates observed in network traffic.
+    Maintains full schema compatibility with prior tests while adding structured candidate metadata.
     """
     events = load_parsed_events_safely()
-    shadow_events = [
-        ev for ev in events 
-        if "unknown" in ev.get("endpoint", "").lower() or ev.get("status_code") == 404
-    ]
+    documented = load_documented_endpoints()
+    candidates = []
+
+    for ev in events:
+        ep = ev.get("endpoint", "")
+        m = ev.get("method", "GET").upper()
+        sc = ev.get("status_code", 200)
+
+        is_doc = is_route_documented(m, ep, documented) if documented else ("unknown" not in ep.lower())
+        is_shadow = not is_doc or sc == 404 or "unknown" in ep.lower()
+
+        if is_shadow:
+            candidates.append({
+                **ev,
+                "id": f"SHADOW-CANDIDATE-{len(candidates) + 1:03d}",
+                "event_id": ev.get("event_id") or f"EVT-SHADOW-{len(candidates) + 1:03d}",
+                "detection_type": "Uncataloged Route Observation",
+                "catalog_status": "Undocumented Candidate",
+                "classification": "Undocumented Active Route" if sc < 400 else "Unknown Route Scan / 404",
+                "severity": "MEDIUM" if sc < 400 else "LOW",
+                "status": "Under Review",
+                "note": f"HTTP {sc} observed on uncataloged path {ep}. Requires OpenAPI schema verification.",
+                "remediation": "Audit routing tables and compare against the official OpenAPI specification."
+            })
+
     return {
         "success": True,
-        "count": len(shadow_events),
-        "candidates": shadow_events
+        "count": len(candidates),
+        "candidates": candidates
     }
 
 
@@ -278,6 +352,7 @@ async def get_shadow_api_candidates():
 async def get_bola_candidates():
     """
     Returns potential authorization review candidates (e.g. user/owner mismatches).
+    Maintains full schema compatibility with prior tests while adding structured finding metadata.
     """
     events = load_parsed_events_safely()
     candidates = []
@@ -287,14 +362,92 @@ async def get_bola_candidates():
         if u_auth and u_owner and u_auth != u_owner:
             candidates.append({
                 **ev,
+                "id": f"BOLA-CANDIDATE-{len(candidates) + 1:03d}",
+                "event_id": ev.get("event_id") or f"EVT-BOLA-{len(candidates) + 1:03d}",
                 "detection_type": "Potential Authorization Review Candidate",
-                "note": f"Mismatched user context (auth: {u_auth}, owner: {u_owner}). Subject to authorization-policy verification."
+                "severity": "HIGH",
+                "status": "Under Review",
+                "note": f"Mismatched user context (auth: {u_auth}, owner: {u_owner}). Subject to authorization-policy verification.",
+                "remediation": "Enforce object-level access control checks (ACL/RBAC) in route handlers before data mutation or retrieval."
             })
 
     return {
         "success": True,
         "count": len(candidates),
         "candidates": candidates
+    }
+
+
+@app.get("/api/v1/telemetry")
+async def get_telemetry():
+    """
+    Aggregates runtime events into time-series telemetry buckets
+    for visualization in the SOC dashboard traffic chart.
+    """
+    events = load_parsed_events_safely()
+    if not events:
+        return {
+            "success": True,
+            "count": 0,
+            "series": []
+        }
+
+    documented = load_documented_endpoints()
+    buckets: Dict[str, Dict[str, Any]] = {}
+
+    for ev in events:
+        ts = ev.get("timestamp") or "2026-10-09T10:00:00"
+        time_clean = ts.replace("T", " ")
+        time_label = time_clean[11:19] if len(time_clean) >= 19 else (time_clean[11:16] if len(time_clean) >= 16 else time_clean)
+
+        if time_label not in buckets:
+            buckets[time_label] = {
+                "time": time_label,
+                "total": 0,
+                "documented": 0,
+                "shadow": 0,
+                "flagged": 0,
+                "get": 0,
+                "post": 0,
+                "put": 0,
+                "delete": 0
+            }
+
+        b = buckets[time_label]
+        b["total"] += 1
+
+        m = ev.get("method", "GET").upper()
+        if m == "GET":
+            b["get"] += 1
+        elif m == "POST":
+            b["post"] += 1
+        elif m == "PUT":
+            b["put"] += 1
+        elif m == "DELETE":
+            b["delete"] += 1
+
+        ep = ev.get("endpoint", "")
+        sc = ev.get("status_code", 200)
+        u_auth = ev.get("authenticated_user_id")
+        u_owner = ev.get("object_owner_id")
+
+        is_doc = is_route_documented(m, ep, documented) if documented else ("unknown" not in ep.lower())
+        is_shadow = not is_doc or sc == 404 or "unknown" in ep.lower()
+        is_flagged = bool(u_auth and u_owner and u_auth != u_owner) or sc >= 400
+
+        if is_shadow:
+            b["shadow"] += 1
+        else:
+            b["documented"] += 1
+
+        if is_flagged:
+            b["flagged"] += 1
+
+    series = list(buckets.values())
+    return {
+        "success": True,
+        "count": len(series),
+        "series": series
     }
 
 

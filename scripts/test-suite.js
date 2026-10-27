@@ -1,13 +1,13 @@
 /**
  * API-Sentinel Week 1 Automated QA & Validation Test Suite
  */
-import { 
-  summaryStats, 
-  endpointsData, 
-  securityAlertsData, 
-  trafficHistory, 
-  methodDistribution, 
-  alertDistribution 
+import {
+  summaryStats,
+  endpointsData,
+  securityAlertsData,
+  trafficHistory,
+  methodDistribution,
+  alertDistribution
 } from '../src/data/mockData.js';
 
 const results = [];
@@ -107,7 +107,7 @@ const searchUsers = endpointsData.filter(e => e.endpoint.toLowerCase().includes(
 assert('Search for "/api/users" matches exact and nested routes', searchUsers.length === 3, `Matched routes: ${searchUsers.map(u => `${u.method} ${u.endpoint}`).join(', ')}`);
 
 // 2.4 Combined Search + Filter
-const combinedSearchFilter = endpointsData.filter(e => 
+const combinedSearchFilter = endpointsData.filter(e =>
   e.endpoint.toLowerCase().includes('/api/users') && e.method === 'POST'
 );
 assert('Combined search ("/api/users") and method (POST) works', combinedSearchFilter.length === 1, `Matched: ${combinedSearchFilter[0]?.method} ${combinedSearchFilter[0]?.endpoint}`);
@@ -143,7 +143,7 @@ assert('Search by heuristic details matches relevant detection records', searchH
 // TEST GROUP 4: Traffic History & Tooltip Safety
 // ----------------------------------------------------
 console.log('\n--- Test Group 4: Traffic Telemetry Data Structure ---');
-assert('Traffic history has time slots and numeric totals', 
+assert('Traffic history has time slots and numeric totals',
   trafficHistory.length > 0 && trafficHistory.every(t => typeof t.total === 'number' && typeof t.time === 'string'),
   `${trafficHistory.length} time points verified`
 );
@@ -179,13 +179,13 @@ assert('Authorization bearer tokens are sanitized and masked', allTokensMasked, 
 // TEST GROUP 6: Parser Event Adapter (src/services/eventAdapter.js)
 // ----------------------------------------------------
 console.log('\n--- Test Group 6: Python Parser Event Adapter ---');
-import { 
-  normalizeMethod, 
-  normalizeStatusCode, 
-  normalizeTimestamp, 
-  validateParserEvent, 
-  adaptParserEvent, 
-  adaptParserEvents 
+import {
+  normalizeMethod,
+  normalizeStatusCode,
+  normalizeTimestamp,
+  validateParserEvent,
+  adaptParserEvent,
+  adaptParserEvents
 } from '../src/services/eventAdapter.js';
 
 // 6.1 Method normalization
@@ -215,7 +215,7 @@ const testBatch = [
   { method: 'GET' } // intentional malformed entry
 ];
 const batchResult = adaptParserEvents(testBatch);
-assert('Batch adapter adapts valid events and tracks rejected items', 
+assert('Batch adapter adapts valid events and tracks rejected items',
   batchResult.successCount === 2 && batchResult.rejectedCount === 1,
   `Adapted: ${batchResult.successCount}, Rejected: ${batchResult.rejectedCount}`
 );
@@ -226,7 +226,7 @@ assert('Batch adapter adapts valid events and tracks rejected items',
 console.log('\n--- Test Group 7: Backend API Service Contracts ---');
 import { API_BASE_URL, PROPOSED_BACKEND_CONTRACTS } from '../src/services/api.js';
 
-assert('API_BASE_URL is defined and defaults to port 8000', 
+assert('API_BASE_URL is defined and defaults to port 8000',
   typeof API_BASE_URL === 'string' && API_BASE_URL.includes('8000'),
   `Configured API_BASE_URL: ${API_BASE_URL}`
 );
@@ -238,10 +238,10 @@ const expectedEndpoints = [
   'GET /api/v1/detections/shadow-apis',
   'GET /api/v1/detections/bola'
 ];
-const contractsMatch = expectedEndpoints.every(ep => 
+const contractsMatch = expectedEndpoints.every(ep =>
   PROPOSED_BACKEND_CONTRACTS.some(c => c.endpoint === ep)
 );
-assert('Proposed backend contracts contain all 5 required integration endpoints', 
+assert('Proposed backend contracts contain all 5 required integration endpoints',
   contractsMatch && PROPOSED_BACKEND_CONTRACTS.length >= 5,
   `${PROPOSED_BACKEND_CONTRACTS.length} proposed contracts documented`
 );
@@ -279,11 +279,11 @@ const sampleRawBOLA = {
   object_owner_id: "user_1"
 };
 const adaptedBOLA = adaptParserEvent(sampleRawBOLA);
-assert('User/Owner mismatch is labeled as candidate review, not confirmed vulnerability', 
-  adaptedBOLA.data.eventType === 'Potential Authorization Review Candidate', 
+assert('User/Owner mismatch is labeled as candidate review, not confirmed vulnerability',
+  adaptedBOLA.data.eventType === 'Potential Authorization Review Candidate',
   `Event Type: ${adaptedBOLA.data?.eventType}`
 );
-assert('Caller and owner IDs are preserved on adapted object', 
+assert('Caller and owner IDs are preserved on adapted object',
   adaptedBOLA.data.authenticatedUserId === 'user_2' && adaptedBOLA.data.objectOwnerId === 'user_1',
   `Auth: ${adaptedBOLA.data?.authenticatedUserId}, Owner: ${adaptedBOLA.data?.objectOwnerId}`
 );
@@ -312,7 +312,7 @@ assert('Malformed events are skipped without throwing exceptions', malformedBatc
 
 // 8.5 Parser Execution Trigger Contract in API Service
 assert('apiService exports triggerParserRun function', typeof triggerParserRun === 'function', 'triggerParserRun exported');
-assert('POST /api/v1/parser/run is registered in backend contracts', 
+assert('POST /api/v1/parser/run is registered in backend contracts',
   PROPOSED_BACKEND_CONTRACTS.some(c => c.endpoint === 'POST /api/v1/parser/run'),
   'POST /api/v1/parser/run documented'
 );
@@ -321,10 +321,67 @@ assert('POST /api/v1/parser/run is registered in backend contracts',
 const sampleBatch = [sampleRaw1, sampleRawBOLA];
 const run1 = adaptParserEvents(sampleBatch).adapted;
 const run2 = adaptParserEvents(sampleBatch).adapted;
-assert('Consecutive parser adaptations produce consistent non-duplicated counts', 
-  run1.length === 2 && run2.length === 2, 
+assert('Consecutive parser adaptations produce consistent non-duplicated counts',
+  run1.length === 2 && run2.length === 2,
   `Batch 1: ${run1.length}, Batch 2: ${run2.length}`
 );
+
+// ----------------------------------------------------
+// TEST GROUP 9: Week 4 Live Findings, Telemetry Rollup & Security Hardening
+// ----------------------------------------------------
+console.log('\n--- Test Group 9: Week 4 Live Findings, Telemetry Rollup & Security Hardening ---');
+import { sanitizeHeaders, sanitizePayload } from '../src/services/eventAdapter.js';
+import { fetchTelemetryHistory, fetchShadowDetections, fetchBolaDetections } from '../src/services/api.js';
+
+// 9.1 Sensitive Header Masking / Redaction
+const rawHeadersWithAuth = {
+  "Host": "api.internal.local",
+  "User-Agent": "curl/7.88.1",
+  "Authorization": "Bearer super-secret-token-xyz-12345",
+  "Cookie": "session_id=secret-session-abc",
+  "X-API-Key": "key-998877"
+};
+const sanitizedH = sanitizeHeaders(rawHeadersWithAuth);
+assert('Sensitive Authorization header is masked', sanitizedH.Authorization === '[REDACTED_SENSITIVE_CREDENTIAL]', `Auth: ${sanitizedH.Authorization}`);
+assert('Sensitive Cookie header is masked', sanitizedH.Cookie === '[REDACTED_SENSITIVE_CREDENTIAL]', `Cookie: ${sanitizedH.Cookie}`);
+assert('Sensitive API Key header is masked', sanitizedH['X-API-Key'] === '[REDACTED_SENSITIVE_CREDENTIAL]', `API-Key: ${sanitizedH['X-API-Key']}`);
+assert('Standard headers like Host and User-Agent are preserved intact', sanitizedH.Host === 'api.internal.local' && sanitizedH['User-Agent'] === 'curl/7.88.1', 'Host and User-Agent preserved');
+
+// 9.2 Request Body PII / Secret Masking
+const rawPayloadWithSecrets = {
+  username: "alice",
+  password: "super_secret_password_123",
+  credit_card: "4111-2222-3333-4444",
+  profile: {
+    email: "alice@example.com",
+    api_key: "ak_live_xyz789"
+  }
+};
+const sanitizedP = sanitizePayload(rawPayloadWithSecrets);
+assert('Top-level password field is masked as PII', sanitizedP.password === '[REDACTED_PII]', `Password: ${sanitizedP.password}`);
+assert('Top-level credit_card field is masked as PII', sanitizedP.credit_card === '[REDACTED_PII]', `Card: ${sanitizedP.credit_card}`);
+assert('Nested API key in profile is recursively masked as PII', sanitizedP.profile.api_key === '[REDACTED_PII]', `Nested key: ${sanitizedP.profile.api_key}`);
+assert('Non-sensitive payload fields (username, email) are preserved', sanitizedP.username === 'alice' && sanitizedP.profile.email === 'alice@example.com', 'Non-sensitive fields intact');
+
+// 9.3 Backend Contract Completeness for Week 4
+assert('API service exports fetchTelemetryHistory function', typeof fetchTelemetryHistory === 'function', 'fetchTelemetryHistory exported');
+assert('API service exports fetchShadowDetections function', typeof fetchShadowDetections === 'function', 'fetchShadowDetections exported');
+assert('API service exports fetchBolaDetections function', typeof fetchBolaDetections === 'function', 'fetchBolaDetections exported');
+assert('GET /api/v1/telemetry is registered in backend contracts',
+  PROPOSED_BACKEND_CONTRACTS.some(c => c.endpoint === 'GET /api/v1/telemetry'),
+  'GET /api/v1/telemetry documented in contracts'
+);
+
+// 9.4 Event Adapter Integrated Sanitization
+const eventWithCredentials = {
+  method: "POST",
+  path: "/api/login",
+  headers: { "Authorization": "Basic dXNlcjpwYXNz", "Accept": "application/json" },
+  request_body: { username: "bob", password: "mypassword" }
+};
+const adaptedWithSanitization = adaptParserEvent(eventWithCredentials);
+assert('Event adapter automatically redacts authorization headers', adaptedWithSanitization.data.requestHeaders.Authorization === '[REDACTED_SENSITIVE_CREDENTIAL]', 'Headers redacted during adaptation');
+assert('Event adapter automatically redacts passwords in payload', adaptedWithSanitization.data.requestBody.password === '[REDACTED_PII]', 'Payload redacted during adaptation');
 
 // Summary of results
 const totalPass = results.filter(r => r.status === 'PASS').length;

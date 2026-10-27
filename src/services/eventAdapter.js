@@ -1,9 +1,9 @@
 /**
  * API-Sentinel — Event Adapter Service (Week 2 Provisional Module)
- * 
+ *
  * Maps normalized event outputs from the Python parser (logs/parsed_events.json)
  * into API-Sentinel frontend internal representation.
- * 
+ *
  * PROVISIONAL NOTICE:
  * Saidani's Python parser is developed separately. This adapter is built against the
  * agreed shared specification. If parser output is absent, this adapter operates safely
@@ -15,6 +15,59 @@ export const VALID_HTTP_METHODS = new Set(['GET', 'POST', 'PUT', 'DELETE', 'PATC
 
 // Known Severity Levels
 export const VALID_SEVERITIES = new Set(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']);
+
+/**
+ * Sanitizes request headers by redacting sensitive tokens, cookies, auth headers, and keys.
+ */
+export function sanitizeHeaders(headers) {
+  if (!headers || typeof headers !== 'object' || Array.isArray(headers)) {
+    return headers || null;
+  }
+  const SENSITIVE_PATTERNS = [
+    'auth', 'token', 'cookie', 'secret', 'password', 'api-key', 'apikey', 'jwt', 'session', 'credential'
+  ];
+  const sanitized = {};
+  for (const [key, val] of Object.entries(headers)) {
+    const lowerKey = key.toLowerCase();
+    const isSensitive = SENSITIVE_PATTERNS.some(pat => lowerKey.includes(pat));
+    if (isSensitive) {
+      sanitized[key] = '[REDACTED_SENSITIVE_CREDENTIAL]';
+    } else {
+      sanitized[key] = val;
+    }
+  }
+  return sanitized;
+}
+
+/**
+ * Recursively sanitizes payload objects, masking sensitive fields (passwords, secrets, cards).
+ */
+export function sanitizePayload(payload) {
+  if (!payload) return null;
+  if (typeof payload !== 'object') return payload;
+
+  const SENSITIVE_KEYS = new Set([
+    'password', 'passwd', 'secret', 'token', 'access_token', 'refresh_token',
+    'credit_card', 'card_number', 'cvv', 'ssn', 'api_key', 'private_key', 'authorization'
+  ]);
+
+  if (Array.isArray(payload)) {
+    return payload.map(item => sanitizePayload(item));
+  }
+
+  const sanitized = {};
+  for (const [k, v] of Object.entries(payload)) {
+    const lower = k.toLowerCase();
+    if (SENSITIVE_KEYS.has(lower) || lower.includes('password') || lower.includes('secret')) {
+      sanitized[k] = '[REDACTED_PII]';
+    } else if (v && typeof v === 'object') {
+      sanitized[k] = sanitizePayload(v);
+    } else {
+      sanitized[k] = v;
+    }
+  }
+  return sanitized;
+}
 
 /**
  * Normalizes HTTP Method string.
@@ -152,7 +205,8 @@ export function adaptParserEvent(raw, index = 0) {
   }
 
   // Sanitized headers
-  const requestHeaders = raw.request_headers || raw.headers || null;
+  const rawHeaders = raw.request_headers || raw.headers || null;
+  const requestHeaders = sanitizeHeaders(rawHeaders);
 
   // Request body payload (never exposed on main table, for modal inspection only)
   let requestBody = raw.request_body !== undefined ? raw.request_body : (raw.body || null);
@@ -163,6 +217,7 @@ export function adaptParserEvent(raw, index = 0) {
       // Keep as string if not JSON
     }
   }
+  requestBody = sanitizePayload(requestBody);
 
   // Fallbacks for details and notes
   details = details || `Traffic observed on route ${endpoint} with status ${statusCode || 'unknown'}.`;

@@ -1,15 +1,15 @@
 /**
  * API-Sentinel — Backend Service Layer (Week 2 Architecture)
- * 
+ *
  * Centralized API client for communicating with the team's Python FastAPI / Flask backend.
  * Uses configurable environment variable VITE_API_BASE_URL (default: http://localhost:8000).
- * 
+ *
  * PROPOSED CONTRACT NOTICE:
  * The endpoints below are proposed contracts designed for Week 3 integration.
  * They are documented as PENDING implementation by the backend team.
  */
 
-export const API_BASE_URL = 
+export const API_BASE_URL =
   (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_BASE_URL)
     ? import.meta.env.VITE_API_BASE_URL
     : 'http://localhost:8000';
@@ -182,6 +182,11 @@ export const PROPOSED_BACKEND_CONTRACTS = [
   {
     endpoint: "GET /api/v1/detections/bola",
     description: "Object ID parameter enumeration and cross-tenant access violation events",
-    status: "IMPLEMENTED (Week 3 FastAPI Gateway)"
+    status: "IMPLEMENTED (Week 4 FastAPI Gateway)"
+  },
+  {
+    endpoint: "GET /api/v1/telemetry",
+    description: "Time-series request volume, method breakdowns, and anomaly telemetry",
+    status: "IMPLEMENTED (Week 4 FastAPI Gateway)"
   }
 ];
