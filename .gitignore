@@ -1,3 +1,4 @@
+
 node_modules/
 dist/
 dist-ssr/
@@ -7,3 +8,12 @@ dist-ssr/
 __pycache__/
 *.py[cod]
 *$py.class
+.env
+.env.*
+!.env.example
+*.merge-backup
+/index-*.css
+/index-*.js
+/assets/*.css
+/assets/*.js
+logs/parsed_events.merge-backup.json
