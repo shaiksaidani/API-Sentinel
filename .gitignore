@@ -11,12 +11,9 @@ __pycache__/
 .env
 .env.*
 !.env.example
-
 *.merge-backup
-
-/assets/*.css
-/assets/*.js
-
 /index-*.css
 /index-*.js
+/assets/*.css
+/assets/*.js
 logs/parsed_events.merge-backup.json
