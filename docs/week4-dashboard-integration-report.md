@@ -1,11 +1,11 @@
-# API-Sentinel — Week 4 Backend Integration, Detection Findings & End-to-End Validation Report
+﻿# API-Sentinel â€” Week 4 Backend Integration, Detection Findings & End-to-End Validation Report
 
-**Project:** API-Sentinel — Runtime BOLA & Shadow API Detection Engine  
-**Module:** SOC Dashboard, Gateway Integration & Documentation  
-**Engineer:** Lokesh (Frontend & Integration Specialist)  
-**Date:** October 28, 2026  
-**Repository Branch:** `feature/week4-dashboard-integration`  
-**Base Commit:** `c910e33` (Merged Weeks 2–3 on `sentinel/main`)  
+**Project:** API-Sentinel â€” Runtime BOLA & Shadow API Detection Engine
+**Module:** SOC Dashboard, Gateway Integration & Documentation
+**Engineer:** Lokesh (Frontend & Integration Specialist)
+**Date:** October 28, 2026
+**Repository Branch:** `feature/week4-dashboard-integration`
+**Base Commit:** `c910e33` (Merged Weeks 2â€“3 on `sentinel/main`)
 **Gateway URL:** `http://127.0.0.1:8000` | **Frontend URL:** `http://127.0.0.1:3000`
 
 ---
@@ -34,43 +34,43 @@ During Week 4, API-Sentinel transitioned from independent frontend and backend p
 +-----------------------------------------------------------------------------------+
 |                                                                                   |
 |  [Network Traffic Log / Samples]                                                  |
-|         │                                                                         |
-|         ▼                                                                         |
-|  [parser/traffic_parser.py] ──(Subprocess Dispatch / POST /parser/run)            |
-|         │                                                                         |
-|         ▼                                                                         |
-|  [logs/parsed_events.json] ──(Normalized Schema Storage)                          |
-|         │                                                                         |
-|         ├─────────────────────────────┼────────────────────────────┐              |
-|         ▼                             ▼                            ▼              |
+|         â”‚                                                                         |
+|         â–¼                                                                         |
+|  [parser/traffic_parser.py] â”€â”€(Subprocess Dispatch / POST /parser/run)            |
+|         â”‚                                                                         |
+|         â–¼                                                                         |
+|  [logs/parsed_events.json] â”€â”€(Normalized Schema Storage)                          |
+|         â”‚                                                                         |
+|         â”œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¼â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”              |
+|         â–¼                             â–¼                            â–¼              |
 |  [FastAPI Gateway Engine]     [Event Summary Engine]     [Catalog Matcher]        |
 |  (backend/main.py)            (parser/event_summary.py)  (Documented_endpoints)   |
-|         │                                                          │              |
-|         ├──────────────────────────────────────────────────────────┘              |
-|         ▼                                                                         |
+|         â”‚                                                          â”‚              |
+|         â”œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜              |
+|         â–¼                                                                         |
 |  [REST API Service Layer] (CORS Enabled: port 3000 / 5173)                        |
-|  ├── GET /api/v1/health                                                           |
-|  ├── GET /api/v1/metrics/summary                                                  |
-|  ├── GET /api/v1/events?limit=50&offset=0                                         |
-|  ├── GET /api/v1/endpoints                                                        |
-|  ├── GET /api/v1/detections/shadow-apis                                           |
-|  ├── GET /api/v1/detections/bola                                                  |
-|  ├── GET /api/v1/telemetry                                                        |
-|  └── POST /api/v1/parser/run                                                      |
-|         │                                                                         |
-|         ▼ (HTTP JSON Stream with Timeout & AbortController)                       |
+|  â”œâ”€â”€ GET /api/v1/health                                                           |
+|  â”œâ”€â”€ GET /api/v1/metrics/summary                                                  |
+|  â”œâ”€â”€ GET /api/v1/events?limit=50&offset=0                                         |
+|  â”œâ”€â”€ GET /api/v1/endpoints                                                        |
+|  â”œâ”€â”€ GET /api/v1/detections/shadow-apis                                           |
+|  â”œâ”€â”€ GET /api/v1/detections/bola                                                  |
+|  â”œâ”€â”€ GET /api/v1/telemetry                                                        |
+|  â””â”€â”€ POST /api/v1/parser/run                                                      |
+|         â”‚                                                                         |
+|         â–¼ (HTTP JSON Stream with Timeout & AbortController)                       |
 |  [React Frontend Service Client] (src/services/api.js)                            |
-|         │                                                                         |
-|         ▼ (PII Masking & Event Adaptation)                                        |
+|         â”‚                                                                         |
+|         â–¼ (PII Masking & Event Adaptation)                                        |
 |  [Event Adapter & Sanitizer] (src/services/eventAdapter.js)                       |
-|         │                                                                         |
-|         ▼ (State Management & Auto-Refresh Polling)                               |
+|         â”‚                                                                         |
+|         â–¼ (State Management & Auto-Refresh Polling)                               |
 |  [SOC Dashboard Component Tree] (src/pages/Dashboard.jsx)                         |
-|  ├── [KPI Stat Cards] ── (Authoritative Summary Metrics)                          |
-|  ├── [Traffic Analytics] ── (Time-Series AreaChart Visualization)                 |
-|  ├── [Endpoint Table] ── (Catalog Diff & Route Inventory)                         |
-|  ├── [Security Alerts Table] ── (BOLA & Shadow Incident Triage)                   |
-|  └── [Event Inspection Modal] ── (Sanitized Headers, Body, Identity Discrepancy)  |
+|  â”œâ”€â”€ [KPI Stat Cards] â”€â”€ (Authoritative Summary Metrics)                          |
+|  â”œâ”€â”€ [Traffic Analytics] â”€â”€ (Time-Series AreaChart Visualization)                 |
+|  â”œâ”€â”€ [Endpoint Table] â”€â”€ (Catalog Diff & Route Inventory)                         |
+|  â”œâ”€â”€ [Security Alerts Table] â”€â”€ (BOLA & Shadow Incident Triage)                   |
+|  â””â”€â”€ [Event Inspection Modal] â”€â”€ (Sanitized Headers, Body, Identity Discrepancy)  |
 +-----------------------------------------------------------------------------------+
 ```
 
