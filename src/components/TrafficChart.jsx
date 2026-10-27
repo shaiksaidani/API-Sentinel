@@ -41,7 +41,8 @@ function CustomTooltip({ active, payload, label }) {
 export default function TrafficChart({ 
   trafficData = [], 
   methods = [], 
-  alertCategories = [] 
+  alertCategories = [],
+  isLive = false
 }) {
   const totalMethodCount = methods.reduce((acc, curr) => acc + (curr.count || 0), 0) || 1;
 
@@ -171,7 +172,7 @@ export default function TrafficChart({
         {/* Security Alert Breakdown Summary */}
         <div style={{ marginTop: '20px', paddingTop: '16px', borderTop: '1px solid var(--border-color)' }}>
           <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8 }}>
-            Alert Categories (Mock)
+            {isLive ? 'Alert Categories (Live Telemetry)' : 'Alert Categories (Demo Prototype)'}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {alertCategories && alertCategories.length > 0 ? (

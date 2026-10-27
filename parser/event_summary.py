@@ -62,11 +62,11 @@ def compute_summary_metrics(events: List[Dict[str, Any]]) -> Dict[str, Any]:
         # User/Owner discrepancy check (potential authorization review candidate)
         auth_user = ev.get("authenticated_user_id")
         owner_user = ev.get("object_owner_id")
-        if auth_user and owner_user and auth_user != owner_user:
+        if auth_user and owner_user and str(auth_user) != str(owner_user):
             potential_auth_review_count += 1
 
         # Uncataloged candidates (heuristic)
-        if "unknown" in ep.lower():
+        if ev.get("documented") is False or "unknown" in ep.lower():
             uncataloged_endpoint_count += 1
 
     success_count = status_categories["2xx"]

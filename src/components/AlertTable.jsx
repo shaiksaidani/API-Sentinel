@@ -37,7 +37,12 @@ export default function AlertTable({ alerts = [], globalSearch = '', onClearGlob
         severityFilter === 'ALL' || alert.severity === severityFilter;
 
       const matchesType =
-        typeFilter === 'ALL' || alert.eventType === typeFilter;
+        typeFilter === 'ALL' ||
+        alert.eventType === typeFilter ||
+        (typeFilter === 'BOLA Suspicion' && alert.eventType === 'Potential Authorization Review Candidate') ||
+        (typeFilter === 'Potential Authorization Review Candidate' && alert.eventType === 'BOLA Suspicion') ||
+        (typeFilter === 'Shadow API Candidate' && alert.eventType === 'Uncataloged Route Observation') ||
+        (typeFilter === 'Uncataloged Route Observation' && alert.eventType === 'Shadow API Candidate');
 
       return matchesSearch && matchesSeverity && matchesType;
     });

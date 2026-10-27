@@ -170,7 +170,7 @@ export function adaptParserEvent(raw, index = 0) {
   let mitigation = raw.mitigation || raw.recommendation || null;
 
   if (!eventType) {
-    if (authenticatedUserId && objectOwnerId && authenticatedUserId !== objectOwnerId) {
+    if (authenticatedUserId && objectOwnerId && String(authenticatedUserId) !== String(objectOwnerId)) {
       eventType = 'Potential Authorization Review Candidate';
       severity = severity || 'MEDIUM';
       details = details || `Discrepancy observed between caller identity (${authenticatedUserId}) and target owner identity (${objectOwnerId}) on ${endpoint}.`;
@@ -179,9 +179,9 @@ export function adaptParserEvent(raw, index = 0) {
     } else if (raw.is_bola || raw.bola_detected) {
       eventType = 'BOLA Suspicion';
       severity = severity || 'HIGH';
-    } else if (raw.is_shadow || raw.undocumented || endpoint.toLowerCase().includes('unknown') || statusCode === 404) {
+    } else if (raw.is_shadow || raw.undocumented || raw.documented === false || endpoint.toLowerCase().includes('unknown') || statusCode === 404) {
       eventType = 'Uncataloged Route Observation';
-      severity = severity || 'LOW';
+      severity = severity || (statusCode < 400 ? 'MEDIUM' : 'LOW');
       details = details || `HTTP ${statusCode || 404} response observed on uncataloged path ${endpoint}.`;
       simulationNote = simulationNote || 'Candidate route detected in traffic; requires verification against official API schema before confirming as shadow API.';
       mitigation = mitigation || 'Audit routing tables and compare against the official OpenAPI specification.';

@@ -21,6 +21,7 @@ from pydantic import BaseModel
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PARSER_SCRIPT = os.path.join(BASE_DIR, "parser", "traffic_parser.py")
 SAMPLE_INPUT = os.path.join(BASE_DIR, "parser", "sample_events.json")
+JSONL_INPUT = os.path.join(BASE_DIR, "logs", "traffic.jsonl")
 PARSED_LOG = os.path.join(BASE_DIR, "logs", "parsed_events.json")
 DOCUMENTED_FILE = os.path.join(BASE_DIR, "Documented_endpoints.json")
 
@@ -202,9 +203,10 @@ async def get_summary_metrics():
 
 
 @app.post("/api/v1/parser/run")
-async def run_parser_task():
+async def run_parser_task(source: Optional[str] = None):
     """
-    Safely executes the Python traffic parser on parser/sample_events.json.
+    Safely executes the Python traffic parser.
+    Supports source='captured' (logs/traffic.jsonl) or source='sample' (parser/sample_events.json).
     Enforces concurrency lock and safe project-relative paths.
     """
     if parser_lock.locked():
@@ -220,10 +222,16 @@ async def run_parser_task():
                 detail="Traffic parser script not found on backend."
             )
 
-        if not os.path.exists(SAMPLE_INPUT):
+        target_input = SAMPLE_INPUT
+        if source in ("captured", "traffic", "live"):
+            target_input = JSONL_INPUT
+        elif source == "sample":
+            target_input = SAMPLE_INPUT
+
+        if not os.path.exists(target_input):
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Sample event source file not found."
+                detail=f"Target event source file not found: {os.path.basename(target_input)}."
             )
 
         try:
@@ -231,7 +239,7 @@ async def run_parser_task():
             proc = await asyncio.create_subprocess_exec(
                 sys.executable,
                 PARSER_SCRIPT,
-                SAMPLE_INPUT,
+                target_input,
                 PARSED_LOG,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE
@@ -249,7 +257,8 @@ async def run_parser_task():
             events = load_parsed_events_safely()
             return {
                 "success": True,
-                "message": "Traffic parser executed successfully.",
+                "message": f"Traffic parser executed successfully using {os.path.basename(target_input)}.",
+                "source_used": os.path.basename(target_input),
                 "total_events_loaded": len(events),
                 "output_file": "logs/parsed_events.json"
             }
@@ -284,7 +293,9 @@ async def get_endpoints_inventory():
         m = ev.get("method", "GET").upper()
         sc = ev.get("status_code", 200)
 
-        is_doc = is_route_documented(m, ep, documented) if documented else ("unknown" not in ep.lower())
+        is_doc = (ev.get("documented") is True) or (is_route_documented(m, ep, documented) if documented else ("unknown" not in ep.lower()))
+        if ev.get("documented") is False:
+            is_doc = False
         is_undoc = not is_doc
 
         if key not in endpoints_map:
@@ -324,7 +335,9 @@ async def get_shadow_api_candidates():
         m = ev.get("method", "GET").upper()
         sc = ev.get("status_code", 200)
 
-        is_doc = is_route_documented(m, ep, documented) if documented else ("unknown" not in ep.lower())
+        is_doc = (ev.get("documented") is True) or (is_route_documented(m, ep, documented) if documented else ("unknown" not in ep.lower()))
+        if ev.get("documented") is False:
+            is_doc = False
         is_shadow = not is_doc or sc == 404 or "unknown" in ep.lower()
 
         if is_shadow:
@@ -359,7 +372,7 @@ async def get_bola_candidates():
     for ev in events:
         u_auth = ev.get("authenticated_user_id")
         u_owner = ev.get("object_owner_id")
-        if u_auth and u_owner and u_auth != u_owner:
+        if u_auth and u_owner and str(u_auth) != str(u_owner):
             candidates.append({
                 **ev,
                 "id": f"BOLA-CANDIDATE-{len(candidates) + 1:03d}",
@@ -431,9 +444,11 @@ async def get_telemetry():
         u_auth = ev.get("authenticated_user_id")
         u_owner = ev.get("object_owner_id")
 
-        is_doc = is_route_documented(m, ep, documented) if documented else ("unknown" not in ep.lower())
+        is_doc = (ev.get("documented") is True) or (is_route_documented(m, ep, documented) if documented else ("unknown" not in ep.lower()))
+        if ev.get("documented") is False:
+            is_doc = False
         is_shadow = not is_doc or sc == 404 or "unknown" in ep.lower()
-        is_flagged = bool(u_auth and u_owner and u_auth != u_owner) or sc >= 400
+        is_flagged = bool(u_auth and u_owner and str(u_auth) != str(u_owner)) or sc >= 400
 
         if is_shadow:
             b["shadow"] += 1

@@ -148,6 +148,9 @@ class TestFastApiBackend(unittest.TestCase):
 
     def setUp(self):
         self.client = TestClient(app)
+        sample_path = os.path.join(BASE_DIR, "parser", "sample_events.json")
+        parsed_path = os.path.join(BASE_DIR, "logs", "parsed_events.json")
+        parse_traffic_file(sample_path, parsed_path)
 
     def test_health_endpoint(self):
         response = self.client.get("/api/v1/health")
@@ -272,6 +275,20 @@ class TestFastApiBackend(unittest.TestCase):
         )
         self.assertIn(response.status_code, [200, 204])
         self.assertEqual(response.headers.get("access-control-allow-origin"), "http://localhost:3000")
+
+    def test_parser_run_with_captured_traffic(self):
+        """Phase 4: Validates parser execution when source='captured' is requested."""
+        traffic_path = os.path.join(BASE_DIR, "logs", "traffic.jsonl")
+        parsed_path = os.path.join(BASE_DIR, "logs", "parsed_events.json")
+        sample_path = os.path.join(BASE_DIR, "parser", "sample_events.json")
+        if os.path.exists(traffic_path) and os.path.getsize(traffic_path) > 0:
+            response = self.client.post("/api/v1/parser/run?source=captured")
+            self.assertEqual(response.status_code, 200)
+            data = response.json()
+            self.assertTrue(data["success"])
+            self.assertEqual(data["source_used"], "traffic.jsonl")
+            # Restore sample baseline
+            parse_traffic_file(sample_path, parsed_path)
 
 
 if __name__ == "__main__":

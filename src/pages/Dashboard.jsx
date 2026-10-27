@@ -265,6 +265,26 @@ export default function Dashboard({ activeSection, onSelectSection }) {
       )
     : trafficHistory;
 
+  const effectiveAlertCategories = (isBackendLive && backendData.summary) ? [
+    {
+      name: 'BOLA Review Candidates',
+      count: backendData.bolaDetections?.length ?? backendData.summary.potential_auth_review_count ?? 0,
+      color: '#EF4444'
+    },
+    {
+      name: 'Shadow API Candidates',
+      count: backendData.shadowDetections?.length ?? backendData.summary.uncataloged_endpoint_count ?? 0,
+      color: '#F59E0B'
+    },
+    {
+      name: 'Standard Telemetry',
+      count: Math.max(0, (backendData.summary.total_requests || 0) -
+             (backendData.bolaDetections?.length || 0) -
+             (backendData.shadowDetections?.length || 0)),
+      color: '#10B981'
+    }
+  ] : alertDistribution;
+
   return (
     <div className="main-content">
       {/* Header */}
@@ -386,7 +406,8 @@ export default function Dashboard({ activeSection, onSelectSection }) {
             <TrafficChart
               trafficData={effectiveTraffic}
               methods={effectiveMethods}
-              alertCategories={alertDistribution}
+              alertCategories={effectiveAlertCategories}
+              isLive={isBackendLive}
             />
 
             {/* Endpoint Inventory Table */}
@@ -484,7 +505,8 @@ export default function Dashboard({ activeSection, onSelectSection }) {
             <TrafficChart
               trafficData={effectiveTraffic}
               methods={effectiveMethods}
-              alertCategories={alertDistribution}
+              alertCategories={effectiveAlertCategories}
+              isLive={isBackendLive}
             />
           </>
         )}
