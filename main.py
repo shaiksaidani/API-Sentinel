@@ -263,10 +263,16 @@ async def get_shadow_api_candidates():
     Returns uncataloged route candidates observed in network traffic.
     """
     events = load_parsed_events_safely()
+
     shadow_events = [
         ev for ev in events
-        if "unknown" in ev.get("endpoint", "").lower() or ev.get("status_code") == 404
+        if (
+            "unknown" in ev.get("endpoint", "").lower()
+            or ev.get("status_code") == 404
+            or ev.get("documented") is False
+        )
     ]
+
     return {
         "success": True,
         "count": len(shadow_events),
