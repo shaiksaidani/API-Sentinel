@@ -19,6 +19,53 @@ OUTPUT_FILE = os.path.join(
 )
 
 
+def validate_tcp_event(event):
+    """Validate one TCP state-change event without treating it as HTTP."""
+    if not isinstance(event, dict):
+        return False, "Event must be a JSON object", None
+
+    required = (
+        "event_type", "protocol", "source_ip", "source_port",
+        "destination_ip", "destination_port", "old_state", "new_state"
+    )
+
+    for field in required:
+        if field not in event:
+            return False, "Missing field: " + field, None
+
+    if event["event_type"] != "tcp_state_change":
+        return False, "Unsupported TCP event type", None
+
+    if event["protocol"] != "TCP":
+        return False, "Unsupported protocol", None
+
+    try:
+        ipaddress.ip_address(event["source_ip"])
+        ipaddress.ip_address(event["destination_ip"])
+    except (ValueError, TypeError):
+        return False, "Invalid source or destination IP", None
+
+    for field in ("source_port", "destination_port"):
+        value = event[field]
+        if (
+            not isinstance(value, int)
+            or isinstance(value, bool)
+            or not 0 <= value <= 65535
+        ):
+            return False, "Invalid TCP port: " + field, None
+
+    for field in ("old_state", "new_state"):
+        value = event[field]
+        if (
+            not isinstance(value, int)
+            or isinstance(value, bool)
+            or value < 0
+        ):
+            return False, "Invalid TCP state: " + field, None
+
+    return True, None, dict(event)
+
+
 def parse_event(event):
     """Validate and organize one API traffic event."""
 
@@ -163,26 +210,35 @@ def validate_event(event):
         return False, "Invalid source IP or timestamp", None
 
     return True, None, normalized
-def parse_traffic_file(input_path, output_path):
-    """Parse a JSON array, write normalized events, and return counts."""
-    try:
-        with open(input_path, "r", encoding="utf-8") as file:
-            events = json.load(file)
-    except (OSError, json.JSONDecodeError) as error:
-        raise ValueError("Unable to read valid JSON input") from error
+def validate_any_event(event):
+    """Dispatch HTTP and TCP events to their respective validators."""
+    if isinstance(event, dict) and event.get("event_type") == "tcp_state_change":
+        return validate_tcp_event(event)
 
-    if not isinstance(events, list):
-        raise ValueError("Input must contain a JSON list")
+    return validate_event(event)
+
+
+def parse_traffic_file(input_path, output_path):
+    """Parse HTTP and TCP events from JSON or JSONL input."""
+    try:
+        events = load_events(input_path)
+    except (OSError, json.JSONDecodeError, ValueError) as error:
+        raise ValueError("Unable to read valid input") from error
 
     accepted = []
     skipped = 0
 
     for event in events:
-        valid, error, normalized = validate_event(event)
+        valid, error, normalized = validate_any_event(event)
+
         if valid:
             accepted.append(normalized)
         else:
             skipped += 1
+
+    output_dir = os.path.dirname(output_path)
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
 
     with open(output_path, "w", encoding="utf-8") as file:
         json.dump(accepted, file, indent=4)
@@ -205,19 +261,18 @@ def main():
         skipped = 0
 
         for event in events:
-            try:
-                parsed = parse_event(event)
-                parsed_events.append(parsed)
-                print("Parsed:", parsed)
+            valid, error, normalized = validate_any_event(event)
 
-            except (ValueError, AttributeError, TypeError) as error:
+            if valid:
+                parsed_events.append(normalized)
+                print("Parsed:", normalized)
+            else:
                 skipped += 1
                 print("Skipping invalid event:", error)
 
-        os.makedirs(
-            os.path.dirname(output_file),
-            exist_ok=True
-        )
+        output_dir = os.path.dirname(output_file)
+        if output_dir:
+            os.makedirs(output_dir, exist_ok=True)
 
         with open(output_file, "w", encoding="utf-8") as file:
             json.dump(parsed_events, file, indent=4)

@@ -29,9 +29,11 @@ if BASE_DIR not in sys.path:
 try:
     from parser.event_summary import compute_summary_metrics
     from parser.traffic_parser import validate_event
+    from monitoring.tcp_event_summary import summarize_tcp_events
 except ImportError:
     compute_summary_metrics = None
     validate_event = None
+    summarize_tcp_events = None
 
 app = FastAPI(
     title="API-Sentinel Telemetry API",
@@ -157,6 +159,37 @@ async def get_summary_metrics():
     }
 
 
+@app.get("/api/v1/metrics/tcp")
+async def get_tcp_summary_metrics():
+    """
+    Returns summary metrics from captured TCP state-change events.
+    """
+    tcp_log = os.path.join(BASE_DIR, "logs", "network_events.jsonl")
+
+    if summarize_tcp_events is None:
+        raise HTTPException(
+            status_code=503,
+            detail="TCP summary module is unavailable"
+        )
+
+    if not os.path.exists(tcp_log):
+        return {
+            "total_tcp_events": 0,
+            "skipped_lines": 0,
+            "source_ips": {},
+            "destination_ips": {},
+            "state_changes": {}
+        }
+
+    try:
+        return summarize_tcp_events(tcp_log)
+    except OSError as error:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Unable to read TCP event log: {error}"
+        )
+
+
 @app.post("/api/v1/parser/run")
 async def run_parser_task():
     """
@@ -263,10 +296,16 @@ async def get_shadow_api_candidates():
     Returns uncataloged route candidates observed in network traffic.
     """
     events = load_parsed_events_safely()
+
     shadow_events = [
         ev for ev in events
-        if "unknown" in ev.get("endpoint", "").lower() or ev.get("status_code") == 404
+        if (
+            "unknown" in ev.get("endpoint", "").lower()
+            or ev.get("status_code") == 404
+            or ev.get("documented") is False
+        )
     ]
+
     return {
         "success": True,
         "count": len(shadow_events),

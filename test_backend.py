@@ -224,6 +224,22 @@ class TestFastApiBackend(unittest.TestCase):
         self.assertEqual(candidate["object_owner_id"], "user_1")
         self.assertEqual(candidate["detection_type"], "Potential Authorization Review Candidate")
 
+    def test_tcp_metrics_endpoint(self):
+        response = self.client.get("/api/v1/metrics/tcp")
+        self.assertEqual(response.status_code, 200)
+
+        data = response.json()
+        self.assertIn("total_tcp_events", data)
+        self.assertIn("skipped_lines", data)
+        self.assertIn("source_ips", data)
+        self.assertIn("destination_ips", data)
+        self.assertIn("state_changes", data)
+
+        self.assertIsInstance(data["total_tcp_events"], int)
+        self.assertIsInstance(data["source_ips"], dict)
+        self.assertIsInstance(data["destination_ips"], dict)
+        self.assertIsInstance(data["state_changes"], dict)
+
     def test_parser_run_endpoint(self):
         response = self.client.post("/api/v1/parser/run")
         self.assertEqual(response.status_code, 200)

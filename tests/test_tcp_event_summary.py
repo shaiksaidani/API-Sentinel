@@ -44,8 +44,8 @@ class TCPEventSummaryTests(unittest.TestCase):
         self.assertEqual(summary["skipped_lines"], 0)
         self.assertEqual(summary["source_ips"]["127.0.0.1"], 1)
         self.assertEqual(summary["destination_ips"]["192.168.1.20"], 1)
-        self.assertEqual(summary["state_changes"]["2->7"], 1)
-        self.assertEqual(summary["state_changes"]["2->1"], 1)
+        self.assertEqual(summary["state_changes"]["SYN_SENT->CLOSE"], 1)
+        self.assertEqual(summary["state_changes"]["SYN_SENT->ESTABLISHED"], 1)
 
     def test_invalid_json_line_is_skipped(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -62,6 +62,67 @@ class TCPEventSummaryTests(unittest.TestCase):
             summary = summarize_tcp_events(path)
 
         self.assertEqual(summary["total_tcp_events"], 1)
+        self.assertEqual(summary["skipped_lines"], 1)
+
+
+    def test_invalid_ip_is_skipped(self):
+        event = {
+            "event_type": "tcp_state_change",
+            "protocol": "TCP",
+            "source_ip": "invalid-ip",
+            "source_port": 5000,
+            "destination_ip": "127.0.0.1",
+            "destination_port": 8000,
+            "old_state": 2,
+            "new_state": 7,
+        }
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "events.jsonl"
+            path.write_text(json.dumps(event) + "\\n", encoding="utf-8")
+            summary = summarize_tcp_events(path)
+
+        self.assertEqual(summary["total_tcp_events"], 0)
+        self.assertEqual(summary["skipped_lines"], 1)
+
+    def test_invalid_port_is_skipped(self):
+        event = {
+            "event_type": "tcp_state_change",
+            "protocol": "TCP",
+            "source_ip": "127.0.0.1",
+            "source_port": 70000,
+            "destination_ip": "127.0.0.1",
+            "destination_port": 8000,
+            "old_state": 2,
+            "new_state": 7,
+        }
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "events.jsonl"
+            path.write_text(json.dumps(event) + "\\n", encoding="utf-8")
+            summary = summarize_tcp_events(path)
+
+        self.assertEqual(summary["total_tcp_events"], 0)
+        self.assertEqual(summary["skipped_lines"], 1)
+
+    def test_invalid_tcp_state_is_skipped(self):
+        event = {
+            "event_type": "tcp_state_change",
+            "protocol": "TCP",
+            "source_ip": "127.0.0.1",
+            "source_port": 5000,
+            "destination_ip": "127.0.0.1",
+            "destination_port": 8000,
+            "old_state": -1,
+            "new_state": 7,
+        }
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "events.jsonl"
+            path.write_text(json.dumps(event) + "\\n", encoding="utf-8")
+            summary = summarize_tcp_events(path)
+
+        self.assertEqual(summary["total_tcp_events"], 0)
         self.assertEqual(summary["skipped_lines"], 1)
 
 

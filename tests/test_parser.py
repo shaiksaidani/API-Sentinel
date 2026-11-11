@@ -1,4 +1,3 @@
-
 import unittest
 import sys
 import os
@@ -8,7 +7,11 @@ PROJECT_DIR = os.path.dirname(
 )
 sys.path.insert(0, PROJECT_DIR)
 
-from parser.traffic_parser import parse_event
+from parser.traffic_parser import (
+    parse_event,
+    validate_tcp_event,
+    validate_any_event
+)
 
 
 class TestTrafficParser(unittest.TestCase):
@@ -22,13 +25,21 @@ class TestTrafficParser(unittest.TestCase):
             "timestamp": "2026-10-09T10:00:00"
         }
 
+        self.valid_tcp_event = {
+            "event_type": "tcp_state_change",
+            "protocol": "TCP",
+            "source_ip": "127.0.0.1",
+            "source_port": 5000,
+            "destination_ip": "127.0.0.1",
+            "destination_port": 8000,
+            "old_state": 2,
+            "new_state": 1,
+        }
+
     def test_valid_event(self):
         parsed = parse_event(self.valid_event)
         self.assertEqual(parsed["method"], "GET")
-        self.assertEqual(
-            parsed["endpoint"],
-            "/api/users/101"
-        )
+        self.assertEqual(parsed["endpoint"], "/api/users/101")
 
     def test_method_uppercase(self):
         event = self.valid_event.copy()
@@ -75,9 +86,7 @@ class TestTrafficParser(unittest.TestCase):
 
     def test_request_body_is_preserved(self):
         event = self.valid_event.copy()
-        event["request_body"] = {
-            "username": "test_user"
-        }
+        event["request_body"] = {"username": "test_user"}
 
         parsed = parse_event(event)
 
@@ -102,9 +111,59 @@ class TestTrafficParser(unittest.TestCase):
             "user_202"
         )
 
+    def test_valid_tcp_event(self):
+        valid, error, normalized = validate_tcp_event(
+            self.valid_tcp_event
+        )
+
+        self.assertTrue(valid)
+        self.assertIsNone(error)
+        self.assertEqual(
+            normalized["event_type"],
+            "tcp_state_change"
+        )
+
+    def test_invalid_tcp_event_ip(self):
+        event = self.valid_tcp_event.copy()
+        event["source_ip"] = "invalid-ip"
+
+        valid, error, normalized = validate_tcp_event(event)
+
+        self.assertFalse(valid)
+        self.assertIsNotNone(error)
+        self.assertIsNone(normalized)
+
+    def test_invalid_tcp_event_protocol(self):
+        event = self.valid_tcp_event.copy()
+        event["protocol"] = "UDP"
+
+        valid, error, normalized = validate_tcp_event(event)
+
+        self.assertFalse(valid)
+        self.assertIsNotNone(error)
+        self.assertIsNone(normalized)
+
+    def test_dispatch_valid_tcp_event(self):
+        valid, error, normalized = validate_any_event(
+            self.valid_tcp_event
+        )
+
+        self.assertTrue(valid)
+        self.assertIsNone(error)
+        self.assertEqual(
+            normalized["event_type"],
+            "tcp_state_change"
+        )
+
+    def test_dispatch_valid_http_event(self):
+        valid, error, normalized = validate_any_event(
+            self.valid_event
+        )
+
+        self.assertTrue(valid)
+        self.assertIsNone(error)
+        self.assertEqual(normalized["method"], "GET")
+
 
 if __name__ == "__main__":
     unittest.main()
-
-    
-
